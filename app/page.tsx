@@ -101,6 +101,9 @@ self.onmessage = async (event) => {
   } catch (e) { self.postMessage({ok:false, error:String(e)}); }
 };`;
 
+const draftKey = (problemId: string) => `sde-lab-draft:${problemId}`;
+const passedKey = (problemId: string) => `sde-lab-passed:${problemId}`;
+
 export default function Home() {
   const [selected, setSelected] = useState(PROBLEMS[0].id);
   const [language, setLanguage] = useState<Language>("zh");
@@ -129,17 +132,27 @@ export default function Home() {
   const [result, setResult] = useState<any>(null);
   const [hint, setHint] = useState(0);
   const [solved, setSolved] = useState<string[]>([]);
+  const [storageReady, setStorageReady] = useState(false);
+  const [hasPassedSolution, setHasPassedSolution] = useState(false);
   const workerRef = useRef<Worker | null>(null);
 
   const ui = UI_TEXT[language];
   const level = LEVEL_TEXT[language][sourceProblem.level as keyof typeof LEVEL_TEXT.zh];
 
   useEffect(() => {
+    if (!storageReady) return;
+    localStorage.setItem(draftKey(selected), code);
+  }, [code, selected, storageReady]);
+
+  useEffect(() => {
     try {
       setSolved(JSON.parse(localStorage.getItem("sde-lab-solved") || "[]"));
       const savedLanguage = localStorage.getItem("sde-lab-language");
       if (savedLanguage === "zh" || savedLanguage === "en") setLanguage(savedLanguage);
+      setCode(localStorage.getItem(draftKey(PROBLEMS[0].id)) ?? PROBLEMS[0].starter);
+      setHasPassedSolution(localStorage.getItem(passedKey(PROBLEMS[0].id)) !== null);
     } catch {}
+    setStorageReady(true);
   }, []);
   useEffect(() => {
     document.documentElement.lang = language === "en" ? "en" : "zh-CN";
@@ -150,7 +163,24 @@ export default function Home() {
     setLanguage(next);
     localStorage.setItem("sde-lab-language", next);
   };
-  const choose = (id: string) => { const p = PROBLEMS.find(x => x.id === id)!; setSelected(id); setCode(p.starter); setResult(null); setHint(0); };
+  const choose = (id: string) => {
+    const nextProblem = PROBLEMS.find(x => x.id === id)!;
+    setSelected(id);
+    setCode(localStorage.getItem(draftKey(id)) ?? nextProblem.starter);
+    setHasPassedSolution(localStorage.getItem(passedKey(id)) !== null);
+    setResult(null);
+    setHint(0);
+  };
+  const resetCode = () => {
+    setCode(sourceProblem.starter);
+    setResult(null);
+  };
+  const restorePassedCode = () => {
+    const saved = localStorage.getItem(passedKey(selected));
+    if (saved === null) return;
+    setCode(saved);
+    setResult(null);
+  };
   const run = () => {
     setRunning(true); setResult(null);
     workerRef.current?.terminate();
@@ -161,6 +191,8 @@ export default function Home() {
       clearTimeout(timer); setRunning(false); setResult(e.data); worker.terminate();
       if (e.data.ok && e.data.results.every((x:any) => x.passed)) {
         const next = Array.from(new Set([...solved, problem.id])); setSolved(next); localStorage.setItem("sde-lab-solved", JSON.stringify(next));
+        localStorage.setItem(passedKey(problem.id), code);
+        setHasPassedSolution(true);
       }
     };
     worker.onerror = () => { clearTimeout(timer); setRunning(false); setResult({ok:false,error:ui.engineError}); worker.terminate(); };
@@ -195,7 +227,13 @@ export default function Home() {
         {hint>0 && <div className="hintbox">{problem.hints.slice(0,hint).map((h,i)=><p key={h}><b>{i+1}.</b> {h}</p>)}</div>}
       </section>
       <section className="editor-panel">
-        <div className="editor-head"><span><i/> solution.py</span><button onClick={()=>setCode(problem.starter)}>{ui.reset}</button></div>
+        <div className="editor-head">
+          <span><i/> solution.py</span>
+          <div className="editor-actions">
+            <button onClick={restorePassedCode} disabled={!hasPassedSolution} title={!hasPassedSolution ? ui.noPassedVersion : undefined}>{ui.restorePassed}</button>
+            <button onClick={resetCode}>{ui.reset}</button>
+          </div>
+        </div>
         <div className="editor-wrap"><div className="lines" aria-hidden="true">{code.split("\n").map((_,i)=><span key={i}>{i+1}</span>)}</div><textarea spellCheck={false} aria-label={ui.editorLabel} value={code} onChange={e=>setCode(e.target.value)} /></div>
         <div className="runbar"><span>Python 3 · Pyodide</span><button onClick={run} disabled={running}>{running?<><i className="spinner"/> {ui.running}</>:<>{ui.run}</>}</button></div>
         <div className={`console ${passed?"success":""}`}>

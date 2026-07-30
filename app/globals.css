@@ -13,3 +13,6 @@ details.testcase{display:block;padding:0}
 .testcase[open] summary:after{content:"−"}
 .testcase>pre{margin:0 0 12px;padding:12px;background:#ece9df;border-left:3px solid var(--green);white-space:pre-wrap;overflow-wrap:anywhere;font:10px/1.55 var(--font-geist-mono);color:#35433d}
 @media(max-width:520px){.brand small,.progress>div{display:none}.top-actions{gap:10px}.progress{font-size:10px}}
+.editor-actions{display:flex;gap:12px;align-items:center}
+.editor-head button:hover{color:var(--green)}
+.editor-head button:disabled{opacity:.38;cursor:not-allowed}

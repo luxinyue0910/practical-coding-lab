@@ -43,3 +43,15 @@ test("includes English translations for the complete practice set", async () => 
     "Streaming Status Aggregation",
   ]) assert.match(source, new RegExp(title));
 });
+
+test("persists drafts and passing solutions per problem", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /sde-lab-draft:/);
+  assert.match(page, /sde-lab-passed:/);
+  assert.match(page, /localStorage\.setItem\(passedKey\(problem\.id\), code\)/);
+
+  const response = await render();
+  const html = await response.text();
+  assert.match(html, /恢复通过版本/);
+  assert.match(html, /重置为初始代码/);
+});

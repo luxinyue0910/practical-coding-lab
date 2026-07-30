@@ -12,6 +12,7 @@ LeetCode exercises.
 - Chinese/English interface toggle with a device-local language preference
 - In-browser Python execution with Pyodide
 - Expandable public tests and additional hidden tests
+- Per-problem draft autosave and passing-solution snapshots
 - Hints, timeout protection, and device-local progress tracking
 - Responsive desktop and mobile layouts
 

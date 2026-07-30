@@ -23,6 +23,9 @@ test("ships a complete practical interview set", async () => {
   const response = await render();
   const html = await response.text();
   for (const title of ["滑动窗口限流器","带 TTL 的 LRU Cache","可测试的重试器","合并分页 API 数据","依赖任务调度"]) assert.match(html, new RegExp(title));
+  for (const title of ["Meeting 时长 Top K","过去 7 天未处理记录","安全拉取分页 API","API 429 与重试策略","Webhook 事件去重","合并两个用户 API","图片大小统计","流式状态聚合"]) assert.match(html, new RegExp(title));
+  assert.match(html, /14 个限时场景/);
+  assert.match(html, /公开测试 · 可展开查看/);
   assert.match(html, /TEST OUTPUT/);
   assert.match(html, /Python 3/);
 });

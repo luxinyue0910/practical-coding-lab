@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { EXTRA_PROBLEMS } from "./problems-extra";
 
 type Problem = {
   id: string; title: string; level: string; category: string; time: string;
@@ -14,7 +15,7 @@ const PROBLEMS: Problem[] = [
   {
     id: "logs", title: "解析生产日志", level: "热身", category: "Parsing", time: "25 min",
     prompt: "监控服务收到多行访问日志。实现 summarize_logs：跳过格式错误的行，按 HTTP 状态码统计数量，并返回最慢的 3 个有效请求。",
-    requirements: ["每行格式：timestamp method path status latency_ms", "status 必须是 100–599 的整数，latency 必须为非负数", "slowest 按 latency 降序；相同时保留原顺序", "返回 {by_status: dict, slowest: list[dict], malformed: int}"],
+    requirements: ["每行格式：timestamp method path status latency_ms；最后一列 latency_ms 是请求耗时（毫秒）", "status 必须是 100–599 的整数，latency 必须为非负数", "slowest 最多 3 条，元素固定包含 timestamp, method, path, status, latency_ms；按耗时降序，相同时保留原顺序", "返回 {by_status: dict[int,int], slowest: list[dict], malformed: int}"],
     signature: "summarize_logs(lines: list[str]) -> dict",
     starter: `def summarize_logs(lines: list[str]) -> dict:\n    \"\"\"Summarize valid access-log lines.\"\"\"\n    # Your code here\n    pass`,
     publicTests: [
@@ -50,7 +51,7 @@ const PROBLEMS: Problem[] = [
   {
     id: "retry", title: "可测试的重试器", level: "核心", category: "Reliability", time: "30 min",
     prompt: "实现 retry_call。真实代码中 sleep 和随机数会让测试变慢，因此它们必须可注入。",
-    requirements: ["fn 成功时立即返回", "仅捕获 retry_on 指定的异常", "最多 attempts 次，总 attempts 必须 >= 1", "退避：base_delay * 2**retry_index，并调用注入的 sleep_fn"],
+    requirements: ["fn 是无需参数的 callable；成功时立即返回 fn() 的结果", "仅捕获 retry_on 指定的异常", "最多 attempts 次；attempts < 1 时明确抛出 ValueError（错误信息不限）", "退避：base_delay * 2**retry_index，并调用注入的 sleep_fn"],
     signature: "retry_call(fn, attempts=3, base_delay=0.1, sleep_fn=..., retry_on=(Exception,))",
     starter: `import time\n\ndef retry_call(fn, attempts=3, base_delay=0.1,\n               sleep_fn=time.sleep, retry_on=(Exception,)):\n    pass`,
     publicTests: [{ label: "失败后成功", code: `calls = []; sleeps = []\ndef flaky():\n    calls.append(1)\n    if len(calls) < 3: raise ValueError("temporary")\n    return "ok"\nassert retry_call(flaky, 4, 0.5, sleeps.append, (ValueError,)) == "ok"\nassert sleeps == [0.5, 1.0]` }, { label: "不重试其他异常", code: `try:\n    retry_call(lambda: (_ for _ in ()).throw(TypeError("bad")), 3, 1, lambda _: None, (ValueError,))\n    assert False\nexcept TypeError: pass` }],
@@ -77,6 +78,7 @@ const PROBLEMS: Problem[] = [
     hiddenTests: [{ label: "缺失依赖", code: `assert build_batches({}) == []\ntry: build_batches({"ship":["package"]})\nexcept ValueError: pass\nelse: assert False` }],
     hints: ["这是 Kahn 拓扑排序的批处理版本。", "每轮收集所有 remaining 中依赖已完成的任务。"]
   },
+  ...EXTRA_PROBLEMS,
 ];
 
 const WORKER = `
@@ -135,7 +137,7 @@ export default function Home() {
     <div className="workspace">
       <aside className="sidebar">
         <p className="eyebrow">PRACTICE SET · 01</p><h1>写真实的代码。<br/><em>不刷换皮题。</em></h1>
-        <p className="intro">6 个限时场景，练习解析、状态、可靠性、API 与可测试设计。</p>
+        <p className="intro">14 个限时场景，覆盖解析、日期、API、状态、可靠性、流式处理与可测试设计。</p>
         <nav aria-label="练习题列表">{PROBLEMS.map((p,i)=><button key={p.id} className={p.id===selected?"active":""} onClick={()=>choose(p.id)}>
           <span className="num">{String(i+1).padStart(2,"0")}</span><span><b>{p.title}</b><small>{p.category} · {p.time}</small></span><span className={solved.includes(p.id)?"done":"dot"}>{solved.includes(p.id)?"✓":""}</span>
         </button>)}</nav>
@@ -146,7 +148,7 @@ export default function Home() {
         <p className="prompt">{problem.prompt}</p>
         <h3>需求</h3><ul>{problem.requirements.map(x=><li key={x}>{x}</li>)}</ul>
         <div className="signature"><span>FUNCTION</span><code>{problem.signature}</code></div>
-        <h3>公开测试</h3>{problem.publicTests.map((t,i)=><div className="testcase" key={t.label}><span>TEST {i+1}</span><b>{t.label}</b></div>)}
+        <h3>公开测试 · 可展开查看</h3>{problem.publicTests.map((t,i)=><details className="testcase" key={t.label}><summary><span>TEST {i+1}</span><b>{t.label}</b></summary><pre>{t.code}</pre></details>)}
         <button className="hint" onClick={()=>setHint(Math.min(hint+1,problem.hints.length))}>提示 {hint}/{problem.hints.length} →</button>
         {hint>0 && <div className="hintbox">{problem.hints.slice(0,hint).map((h,i)=><p key={h}><b>{i+1}.</b> {h}</p>)}</div>}
       </section>

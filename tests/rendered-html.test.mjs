@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFile } from "node:fs/promises";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -16,6 +17,7 @@ test("renders the Practical.py application shell", async () => {
   assert.match(html, /SDE onsite practice lab/);
   assert.match(html, /解析生产日志/);
   assert.match(html, /Run tests/);
+  assert.match(html, /Switch to English/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/);
 });
 
@@ -28,4 +30,16 @@ test("ships a complete practical interview set", async () => {
   assert.match(html, /公开测试 · 可展开查看/);
   assert.match(html, /TEST OUTPUT/);
   assert.match(html, /Python 3/);
+});
+
+test("includes English translations for the complete practice set", async () => {
+  const source = await readFile(new URL("../app/i18n.ts", import.meta.url), "utf8");
+  for (const title of [
+    "Production Log Parser",
+    "Sliding-Window Rate Limiter",
+    "TTL-Aware LRU Cache",
+    "Top Meeting Participants",
+    "Safe Paginated API Fetch",
+    "Streaming Status Aggregation",
+  ]) assert.match(source, new RegExp(title));
 });

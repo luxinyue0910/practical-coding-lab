@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EXTRA_PROBLEMS } from "./problems-extra";
+import { ENGLISH_PROBLEMS, LEVEL_TEXT, UI_TEXT, type Language } from "./i18n";
 
 type Problem = {
   id: string; title: string; level: string; category: string; time: string;
@@ -102,64 +103,105 @@ self.onmessage = async (event) => {
 
 export default function Home() {
   const [selected, setSelected] = useState(PROBLEMS[0].id);
-  const problem = useMemo(() => PROBLEMS.find(p => p.id === selected)!, [selected]);
-  const [code, setCode] = useState(problem.starter);
+  const [language, setLanguage] = useState<Language>("zh");
+  const sourceProblem = useMemo(() => PROBLEMS.find(p => p.id === selected)!, [selected]);
+  const problem = useMemo(() => {
+    const translation = language === "en" ? ENGLISH_PROBLEMS[selected] : undefined;
+    if (!translation) return sourceProblem;
+    return {
+      ...sourceProblem,
+      title: translation.title,
+      prompt: translation.prompt,
+      requirements: translation.requirements,
+      hints: translation.hints,
+      publicTests: sourceProblem.publicTests.map((test, index) => ({
+        ...test,
+        label: translation.publicLabels[index] ?? test.label,
+      })),
+      hiddenTests: sourceProblem.hiddenTests.map((test, index) => ({
+        ...test,
+        label: translation.hiddenLabels[index] ?? test.label,
+      })),
+    };
+  }, [language, selected, sourceProblem]);
+  const [code, setCode] = useState(PROBLEMS[0].starter);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [hint, setHint] = useState(0);
   const [solved, setSolved] = useState<string[]>([]);
   const workerRef = useRef<Worker | null>(null);
 
-  useEffect(() => { try { setSolved(JSON.parse(localStorage.getItem("sde-lab-solved") || "[]")); } catch {} }, []);
+  const ui = UI_TEXT[language];
+  const level = LEVEL_TEXT[language][sourceProblem.level as keyof typeof LEVEL_TEXT.zh];
+
+  useEffect(() => {
+    try {
+      setSolved(JSON.parse(localStorage.getItem("sde-lab-solved") || "[]"));
+      const savedLanguage = localStorage.getItem("sde-lab-language");
+      if (savedLanguage === "zh" || savedLanguage === "en") setLanguage(savedLanguage);
+    } catch {}
+  }, []);
+  useEffect(() => {
+    document.documentElement.lang = language === "en" ? "en" : "zh-CN";
+  }, [language]);
+
+  const toggleLanguage = () => {
+    const next = language === "zh" ? "en" : "zh";
+    setLanguage(next);
+    localStorage.setItem("sde-lab-language", next);
+  };
   const choose = (id: string) => { const p = PROBLEMS.find(x => x.id === id)!; setSelected(id); setCode(p.starter); setResult(null); setHint(0); };
   const run = () => {
     setRunning(true); setResult(null);
     workerRef.current?.terminate();
     const worker = new Worker(URL.createObjectURL(new Blob([WORKER], {type:"text/javascript"})));
     workerRef.current = worker;
-    const timer = setTimeout(() => { worker.terminate(); setRunning(false); setResult({ok:false,error:"运行超过 8 秒，已停止。检查是否有死循环。"}); }, 8000);
+    const timer = setTimeout(() => { worker.terminate(); setRunning(false); setResult({ok:false,error:ui.timeout}); }, 8000);
     worker.onmessage = e => {
       clearTimeout(timer); setRunning(false); setResult(e.data); worker.terminate();
       if (e.data.ok && e.data.results.every((x:any) => x.passed)) {
         const next = Array.from(new Set([...solved, problem.id])); setSolved(next); localStorage.setItem("sde-lab-solved", JSON.stringify(next));
       }
     };
-    worker.onerror = () => { clearTimeout(timer); setRunning(false); setResult({ok:false,error:"Python 引擎加载失败，请检查网络后重试。"}); worker.terminate(); };
+    worker.onerror = () => { clearTimeout(timer); setRunning(false); setResult({ok:false,error:ui.engineError}); worker.terminate(); };
     worker.postMessage({code, tests:[...problem.publicTests, ...problem.hiddenTests]});
   };
   const passed = result?.ok && result.results?.every((x:any)=>x.passed);
 
   return <main>
     <header className="topbar">
-      <div className="brand"><span className="brandmark">&gt;_</span><div><b>Practical.py</b><small>SDE onsite practice lab</small></div></div>
-      <div className="progress"><span>{solved.length}/{PROBLEMS.length} solved</span><div><i style={{width:`${solved.length/PROBLEMS.length*100}%`}} /></div></div>
+      <div className="brand"><span className="brandmark">&gt;_</span><div><b>Practical.py</b><small>{ui.subtitle}</small></div></div>
+      <div className="top-actions">
+        <button className="language-toggle" onClick={toggleLanguage} aria-label={ui.switchLabel}>{language === "zh" ? "EN" : "中文"}</button>
+        <div className="progress"><span>{solved.length}/{PROBLEMS.length} {ui.solved}</span><div><i style={{width:`${solved.length/PROBLEMS.length*100}%`}} /></div></div>
+      </div>
     </header>
     <div className="workspace">
       <aside className="sidebar">
-        <p className="eyebrow">PRACTICE SET · 01</p><h1>写真实的代码。<br/><em>不刷换皮题。</em></h1>
-        <p className="intro">14 个限时场景，覆盖解析、日期、API、状态、可靠性、流式处理与可测试设计。</p>
-        <nav aria-label="练习题列表">{PROBLEMS.map((p,i)=><button key={p.id} className={p.id===selected?"active":""} onClick={()=>choose(p.id)}>
-          <span className="num">{String(i+1).padStart(2,"0")}</span><span><b>{p.title}</b><small>{p.category} · {p.time}</small></span><span className={solved.includes(p.id)?"done":"dot"}>{solved.includes(p.id)?"✓":""}</span>
+        <p className="eyebrow">{ui.set}</p><h1>{ui.headline1}<br/><em>{ui.headline2}</em></h1>
+        <p className="intro">{ui.intro}</p>
+        <nav aria-label={ui.navLabel}>{PROBLEMS.map((p,i)=><button key={p.id} className={p.id===selected?"active":""} onClick={()=>choose(p.id)}>
+          <span className="num">{String(i+1).padStart(2,"0")}</span><span><b>{language === "en" ? ENGLISH_PROBLEMS[p.id]?.title ?? p.title : p.title}</b><small>{p.category} · {p.time}</small></span><span className={solved.includes(p.id)?"done":"dot"}>{solved.includes(p.id)?"✓":""}</span>
         </button>)}</nav>
-        <div className="source-note"><b>题型依据</b><p>综合公开面经中反复出现的 rate limiter、日志/文件解析、缓存、API 转换、重试与依赖调度。</p></div>
+        <div className="source-note"><b>{ui.sourceTitle}</b><p>{ui.sourceBody}</p></div>
       </aside>
       <section className="problem">
-        <div className="problem-head"><div><span className="pill">{problem.level}</span><span className="category">{problem.category}</span><h2>{problem.title}</h2></div><div className="timer">建议 <b>{problem.time}</b></div></div>
+        <div className="problem-head"><div><span className="pill">{level}</span><span className="category">{problem.category}</span><h2>{problem.title}</h2></div><div className="timer">{ui.suggested} <b>{problem.time}</b></div></div>
         <p className="prompt">{problem.prompt}</p>
-        <h3>需求</h3><ul>{problem.requirements.map(x=><li key={x}>{x}</li>)}</ul>
+        <h3>{ui.requirements}</h3><ul>{problem.requirements.map(x=><li key={x}>{x}</li>)}</ul>
         <div className="signature"><span>FUNCTION</span><code>{problem.signature}</code></div>
-        <h3>公开测试 · 可展开查看</h3>{problem.publicTests.map((t,i)=><details className="testcase" key={t.label}><summary><span>TEST {i+1}</span><b>{t.label}</b></summary><pre>{t.code}</pre></details>)}
-        <button className="hint" onClick={()=>setHint(Math.min(hint+1,problem.hints.length))}>提示 {hint}/{problem.hints.length} →</button>
+        <h3>{ui.publicTests}</h3>{problem.publicTests.map((t,i)=><details className="testcase" key={t.label}><summary><span>TEST {i+1}</span><b>{t.label}</b></summary><pre>{t.code}</pre></details>)}
+        <button className="hint" onClick={()=>setHint(Math.min(hint+1,problem.hints.length))}>{ui.hint} {hint}/{problem.hints.length} →</button>
         {hint>0 && <div className="hintbox">{problem.hints.slice(0,hint).map((h,i)=><p key={h}><b>{i+1}.</b> {h}</p>)}</div>}
       </section>
       <section className="editor-panel">
-        <div className="editor-head"><span><i/> solution.py</span><button onClick={()=>setCode(problem.starter)}>重置</button></div>
-        <div className="editor-wrap"><div className="lines" aria-hidden="true">{code.split("\n").map((_,i)=><span key={i}>{i+1}</span>)}</div><textarea spellCheck={false} aria-label="Python 代码编辑器" value={code} onChange={e=>setCode(e.target.value)} /></div>
-        <div className="runbar"><span>Python 3 · Pyodide</span><button onClick={run} disabled={running}>{running?<><i className="spinner"/> 加载 / 运行</>:<>▶ Run tests</>}</button></div>
+        <div className="editor-head"><span><i/> solution.py</span><button onClick={()=>setCode(problem.starter)}>{ui.reset}</button></div>
+        <div className="editor-wrap"><div className="lines" aria-hidden="true">{code.split("\n").map((_,i)=><span key={i}>{i+1}</span>)}</div><textarea spellCheck={false} aria-label={ui.editorLabel} value={code} onChange={e=>setCode(e.target.value)} /></div>
+        <div className="runbar"><span>Python 3 · Pyodide</span><button onClick={run} disabled={running}>{running?<><i className="spinner"/> {ui.running}</>:<>{ui.run}</>}</button></div>
         <div className={`console ${passed?"success":""}`}>
-          <div className="console-title"><span>TEST OUTPUT</span>{result && <b>{passed?"ALL PASSED":"NEEDS WORK"}</b>}</div>
-          {!result && !running && <p className="muted">运行代码后，这里会显示公开与隐藏测试结果。</p>}
-          {running && <p className="muted">首次加载 Python 约需几秒…</p>}
+          <div className="console-title"><span>{ui.output}</span>{result && <b>{passed?ui.passed:ui.needsWork}</b>}</div>
+          {!result && !running && <p className="muted">{ui.idle}</p>}
+          {running && <p className="muted">{ui.loading}</p>}
           {result?.error && <pre>{result.error}</pre>}
           {result?.output && <pre>{result.output}</pre>}
           {result?.results?.map((r:any)=><div className={r.passed?"test-pass":"test-fail"} key={r.label}><span>{r.passed?"✓":"×"}</span><div><b>{r.label}</b>{r.error&&<pre>{r.error}</pre>}</div></div>)}

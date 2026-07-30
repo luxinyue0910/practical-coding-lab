@@ -9,6 +9,7 @@ LeetCode exercises.
 ## What is included
 
 - 14 timed Python exercises
+- Chinese/English interface toggle with a device-local language preference
 - In-browser Python execution with Pyodide
 - Expandable public tests and additional hidden tests
 - Hints, timeout protection, and device-local progress tracking
@@ -49,6 +50,7 @@ This builds the site and runs the rendered application checks.
 
 ```text
 app/page.tsx           Main practice interface and original problem set
+app/i18n.ts            Chinese and English interface/problem copy
 app/problems-extra.ts  Role-focused practical coding exercises
 app/globals.css        Responsive visual design
 tests/                 Rendered application tests
